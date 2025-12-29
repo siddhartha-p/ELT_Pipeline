@@ -1,4 +1,4 @@
-CREATE table bronze.timesheets (
+CREATE table if not exists bronze.timesheets (
     client_employee_id	VARCHAR,
     department_id VARCHAR,
     department_name	VARCHAR,

@@ -1,4 +1,4 @@
-CREATE table bronze.employees (
+CREATE table if not exists bronze.employees (
 client_employee_id VARCHAR,
 first_name VARCHAR,
 middle_name	VARCHAR,

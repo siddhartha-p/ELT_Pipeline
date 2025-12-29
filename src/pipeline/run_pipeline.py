@@ -26,7 +26,6 @@ logger = logging.getLogger(__name__)
 
 
 def init_schema(schema_dir: Path) -> bool:
-    """Execute DDL scripts to create tables if they don't exist."""
     logger.info("=== Initializing Database Schema ===")
     conn = connect_db()
     if not conn:
@@ -60,7 +59,6 @@ def init_schema(schema_dir: Path) -> bool:
 
 
 def truncate_bronze() -> bool:
-    """Truncate Bronze tables for full reload mode."""
     logger.info("=== Truncating Bronze Tables ===")
     conn = connect_db()
     if not conn:
@@ -85,10 +83,7 @@ def truncate_bronze() -> bool:
 
 
 def load_bronze_layer(data_dir: Path) -> bool:
-    """
-    Extract CSVs and load to Bronze.
-    Returns True only if ALL loads succeed.
-    """
+
     logger.info("=== Loading Bronze Layer ===")
     all_success = True
     
@@ -154,44 +149,42 @@ def load_bronze_layer(data_dir: Path) -> bool:
     return all_success
 
 
-# def transform_bronze_to_silver(sql_dir: Path) -> bool:
-#     """Execute Silver layer SQL transformations."""
-#     logger.info("=== Transforming Bronze → Silver ===")
-#     conn = connect_db()
-#     if not conn:
-#         return False
+def transform_bronze_to_silver(sql_dir: Path) -> bool:
+    """Execute Silver layer SQL transformations."""
+    logger.info("=== Transforming Bronze → Silver ===")
+    conn = connect_db()
+    if not conn:
+        return False
     
-#     try:
-#         silver_dir = sql_dir / "silver" / "transformations"
+    try:
+        # Ordered list of transformations
+        sql_files = [
+            (sql_dir / "10_transform_employees_bronze_to_silver.sql", "Transform Employees"),
+            (sql_dir / "20_transform_timesheets_bronze_to_silver.sql", "Transform Timesheets"),
+        ]
         
-#         # Ordered list of transformations
-#         sql_files = [
-#             (silver_dir / "transform_employees.sql", "Transform Employees"),
-#             (silver_dir / "transform_timesheets.sql", "Transform Timesheets"),
-#         ]
-        
-#         with conn.cursor() as cur:
-#             for sql_file, description in sql_files:
-#                 if not sql_file.exists():
-#                     logger.error(f"SQL file not found: {sql_file}")
-#                     return False
+        with conn.cursor() as cur:
+            for sql_file, description in sql_files:
+                if not sql_file.exists():
+                    logger.error(f"SQL file not found: {sql_file}")
+                    return False
                 
-#                 logger.info(f"Executing: {description}")
-#                 with open(sql_file, 'r', encoding='utf-8') as f:
-#                     cur.execute(f.read())
-#                 conn.commit()
-#                 logger.info(f"✓ {description} complete")
+                logger.info(f"Executing: {description}")
+                with open(sql_file, 'r', encoding='utf-8') as f:
+                    cur.execute(f.read())
+                conn.commit()
+                logger.info(f"✓ {description} complete")
         
-#         return True
+        return True
         
-#     except Exception as e:
-#         logger.error(f"Silver transformation failed: {e}")
-#         if conn:
-#             conn.rollback()
-#         return False
-#     finally:
-#         if conn:
-#             conn.close()
+    except Exception as e:
+        logger.error(f"Silver transformation failed: {e}")
+        if conn:
+            conn.rollback()
+        return False
+    finally:
+        if conn:
+            conn.close()
 
 
 # def transform_silver_to_gold(sql_dir: Path) -> bool:
@@ -235,55 +228,55 @@ def load_bronze_layer(data_dir: Path) -> bool:
 #             conn.close()
 
 
-def run_full_pipeline(truncate: bool = False) -> bool:
-    """
-    Run complete ELT pipeline.
+# def run_full_pipeline(truncate: bool = False) -> bool:
+#     """
+#     Run complete ELT pipeline.
     
-    Args:
-        truncate: If True, truncate Bronze tables before loading
+#     Args:
+#         truncate: If True, truncate Bronze tables before loading
     
-    Returns:
-        True if pipeline completes successfully
-    """
-    logger.info("=" * 60)
-    logger.info(f"Starting Full Pipeline (truncate={truncate})")
-    logger.info("=" * 60)
+#     Returns:
+#         True if pipeline completes successfully
+#     """
+#     logger.info("=" * 60)
+#     logger.info(f"Starting Full Pipeline (truncate={truncate})")
+#     logger.info("=" * 60)
     
-    base_dir = Path(__file__).resolve().parents[2]
-    schema_dir = base_dir / "schema"
-    data_dir = base_dir / "data"
-    sql_dir = base_dir / "sql"
+#     base_dir = Path(__file__).resolve().parents[2]
+#     schema_dir = base_dir / "schema"
+#     data_dir = base_dir / "data"
+#     sql_dir = base_dir / "sql"
     
-    # Step 1: Initialize schema
-    if not init_schema(schema_dir):
-        logger.error("Pipeline aborted: Schema initialization failed")
-        return False
+#     # Step 1: Initialize schema
+#     if not init_schema(schema_dir):
+#         logger.error("Pipeline aborted: Schema initialization failed")
+#         return False
     
-    # Step 2: Optional truncate
-    if truncate:
-        if not truncate_bronze():
-            logger.error("Pipeline aborted: Truncate failed")
-            return False
+#     # Step 2: Optional truncate
+#     if truncate:
+#         if not truncate_bronze():
+#             logger.error("Pipeline aborted: Truncate failed")
+#             return False
     
-    # Step 3: Load Bronze
-    if not load_bronze_layer(data_dir):
-        logger.error("Pipeline failed: Bronze load incomplete")
-        return False
+#     # Step 3: Load Bronze
+#     if not load_bronze_layer(data_dir):
+#         logger.error("Pipeline failed: Bronze load incomplete")
+#         return False
     
-    # Step 4: Transform Bronze → Silver
-    if not transform_bronze_to_silver(sql_dir):
-        logger.error("Pipeline failed: Silver transformation incomplete")
-        return False
+#     # Step 4: Transform Bronze → Silver
+#     if not transform_bronze_to_silver(sql_dir):
+#         logger.error("Pipeline failed: Silver transformation incomplete")
+#         return False
     
-    # Step 5: Transform Silver → Gold
-    if not transform_silver_to_gold(sql_dir):
-        logger.error("Pipeline failed: Gold transformation incomplete")
-        return False
+#     # Step 5: Transform Silver → Gold
+#     if not transform_silver_to_gold(sql_dir):
+#         logger.error("Pipeline failed: Gold transformation incomplete")
+#         return False
     
-    logger.info("=" * 60)
-    logger.info("Pipeline completed successfully")
-    logger.info("=" * 60)
-    return True
+#     logger.info("=" * 60)
+#     logger.info("Pipeline completed successfully")
+#     logger.info("=" * 60)
+#     return True
 
 
 # def run_incremental_load() -> bool:
@@ -352,38 +345,28 @@ def main():
 
 ############### Test Script ####################
 
-    """Simple test script to load data into Bronze schema."""
     logger.info("=" * 60)
     logger.info("Starting Bronze Layer Test Load")
     logger.info("=" * 60)
     
-    # Calculate project paths
     base_dir = Path(__file__).resolve().parents[2]
     schema_dir = base_dir / "sql" / "create_table_queries"
     data_dir = base_dir / "data"
     
-    # Step 1: Initialize database schema
+    # Initialize database schema
     logger.info("Step 1: Initializing database schema...")
     if not init_schema(schema_dir):
         logger.error("Schema initialization failed. Aborting.")
         sys.exit(1)
     
-    # Step 2: Load Bronze layer
-    logger.info("Step 2: Loading CSV data into Bronze tables...")
-    if not load_bronze_layer(data_dir):
-        logger.error("Bronze layer load failed.")
-        sys.exit(1)
+    # Load Bronze layer
+    # logger.info("Step 2: Loading CSV data into Bronze tables...")
+    # if not load_bronze_layer(data_dir):
+    #     logger.error("Bronze layer load failed.")
+    #     sys.exit(1)
     
-    # Step 3: Verify load success
-    logger.info("=" * 60)
-    logger.info("Bronze layer load completed successfully!")
-    logger.info("=" * 60)
-    logger.info("Next steps:")
-    logger.info("  - Check logs in: logs/")
-    logger.info("  - Verify data in Postgres:")
-    logger.info("    SELECT COUNT(*) FROM bronze.employees;")
-    logger.info("    SELECT COUNT(*) FROM bronze.timesheets;")
-    
+    # logger.info("Bronze layer load completed successfully!")
+
     sys.exit(0)
 
 
